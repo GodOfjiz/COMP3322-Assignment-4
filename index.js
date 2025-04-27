@@ -1,7 +1,7 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const app = express();
-
+app.use(express.json());
 // Task A: Set up MongoDB connection using Mongoose
 mongoose.connect('mongodb://mongodb/DailyFlow');
 
@@ -34,11 +34,7 @@ const isValidDate = (year, month, day) => {
            date.getDate() === day;
 };
 
-const formatDate = (year, month, day) => {
-    return `${day}/${month}/${year}`;
-};
-
-// Task B: Route handler for retrieving passenger flow data
+// Task B
 app.get('/HKPassenger/v1/data/:year/:month/:day', async (req, res) => {
     try {
         const { year, month, day } = req.params;
@@ -130,6 +126,71 @@ app.get('/HKPassenger/v1/data/:year/:month/:day', async (req, res) => {
     } catch (err) {
         console.error('Database error:', err);
         res.status(500).json({ error: "Database error" });
+    }
+});
+
+
+//Task C
+
+
+//Task D
+app.post('/HKPassenger/v1/data/', async (req, res) => {
+    if (!req.body || Object.keys(req.body).length === 0) {
+        return res.status(400).json({ error: "POST request - missing data." });
+    }
+
+    const dates = req.body;
+    const status = {};
+
+    try {
+        for (const [dateStr, entries] of Object.entries(dates)) {
+            // Validate date format and validity
+            const dateParts = dateStr.split('/');
+            if (dateParts.length !== 3) {
+                status[dateStr] = "Wrong date format or invalid date";
+                continue;
+            }
+
+            const month = parseInt(dateParts[0], 10);
+            const day = parseInt(dateParts[1], 10);
+            const year = parseInt(dateParts[2], 10);
+
+            if (isNaN(month) || isNaN(day) || isNaN(year)) {
+                status[dateStr] = "Wrong date format or invalid date";
+                continue;
+            }
+
+            // Check if the date is a valid calendar date
+            const parsedDate = new Date(year, month - 1, day);
+            if (parsedDate.getMonth() + 1 !== month || parsedDate.getDate() !== day || parsedDate.getFullYear() !== year) {
+                status[dateStr] = "Wrong date format or invalid date";
+                continue;
+            }
+
+            // Check if date exists in the database
+            const existing = await Daylog.findOne({ Date: dateStr });
+            if (existing) {
+                status[dateStr] = "Records existed; cannot override";
+                continue;
+            }
+
+            // Insert new records
+            const docs = entries.map(entry => ({
+                Date: dateStr,
+                Flow: entry.Flow,
+                Local: entry.Local,
+                Mainland: entry.Mainland,
+                Others: entry.Others
+            }));
+
+            await Daylog.insertMany(docs);
+            status[dateStr] = "Added two records to the database";
+        }
+
+        res.json({ status });
+    } catch (err) {
+        console.error('Database error:', err);
+        res.status(500).json({ error: "Experiencing database error!!" });
     }
 });
 
