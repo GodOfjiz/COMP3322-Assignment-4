@@ -155,28 +155,17 @@ app.get('/HKPassenger/v1/aggregate/:group/:year/:month', async (req, res) => {
     }
     
     // Validate year
-    if (yearNum < 2021 || yearNum > 2025) {
-        return res.status(400).json({ error: "Wrong year input - must be a number between 2021 - 2025." });
-    }
-    
-    // Validate month
-    if (monthNum < 1 || monthNum > 12) {
-        return res.status(400).json({ error: "Wrong month input - must be a number between 1 - 12." });
+    if (yearNum < 2021 || yearNum > 2025 || monthNum < 1 || monthNum > 12) {
+        return res.status(400).json({ error: `Cannot GET /HKPassenger/v1/aggregate/${group}/${year}/${month}` });
     }
   
     try {
         const dates = getDatesInMonth(yearNum, monthNum - 1);
         
-        // Debug: Log the dates being queried
-        console.log("Querying dates:", dates);
-        
         const data = await Daylog.find(
             { Date: { $in: dates } },
             { _id: 0 }
         ).sort({ Date: 1, Flow: 1 }).lean();
-
-        // Debug: Log the data found
-        console.log("Data found:", data);
 
         // Process daily aggregation
         const dailyAggregation = {};
@@ -219,8 +208,6 @@ app.get('/HKPassenger/v1/aggregate/:group/:year/:month', async (req, res) => {
             return response;
         })
         .sort((a, b) => new Date(a.Date) - new Date(b.Date));
-        // Debug: Log the final result
-        console.log("Final result:", result);
 
         return res.json(result);
     } catch (err) {
@@ -241,7 +228,7 @@ app.get('/HKPassenger/v1/aggregate/:group/:year', async (req, res) => {
     
     // Validate year
     if (yearNum < 2021 || yearNum > 2025) {
-        return res.status(400).json({ error: "Wrong year input - must be a number between 2021 - 2025." });
+        return res.status(400).json({ error: `Cannot GET /HKPassenger/v1/aggregate/${group}/${year}` });
     }
   
     try {
@@ -257,7 +244,7 @@ app.get('/HKPassenger/v1/aggregate/:group/:year', async (req, res) => {
         
         data.forEach(entry => {
             const [m, d, y] = entry.Date.split('/');
-            // Pad month with leading zero for consistent sorting
+            
             const monthKey = `${m.padStart(2, '0')}/${y}`;
             
             if (!monthlyAggregation[monthKey]) {
@@ -367,6 +354,12 @@ app.post('/HKPassenger/v1/data/', async (req, res) => {
         console.error('Database error:', err);
         res.status(500).json({ error: "Experiencing database error!!" });
     }
+});
+
+app.use((req, res) => {
+    res.status(400).json({
+      error: `Cannot ${req.method} ${req.path || '[invalid path]'}`
+    });
 });
 
 app.listen(8080, () => {
